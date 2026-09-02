@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D SHOOTER - Tactical Warzone Multiplayer Edition</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(circle at center, #0a1118, #03060a);
+    color: #e0e6ed;
+    font-family: 'Courier New', Courier, monospace, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    position: relative;
+    width: min(1100px, 98vw);
+    height: min(700px, 92vh);
+    aspect-ratio: 11 / 7;
+    background: #0d1821;
+    border: 4px solid #34495e;
+    border-radius: 6px;
+    box-shadow: 0 0 45px rgba(0, 0, 0, 0.95);
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .blueprint-bg {
+    background-color: #0c1a29;
+    background-image: 
+      linear-gradient(rgba(0, 210, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 210, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(rgba(0, 210, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 210, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+    position: relative;
+  }
+  .blueprint-bg::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 8px;
+    background: repeating-linear-gradient(-45deg, #f1c40f, #f1c40f 15px, #111 15px, #111 30px);
+    z-index: 12;
+  }
+
+  .ui-screen {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    text-align: center;
+    padding: 20px;
+    cursor: default;
+  }
+
+  .classified-badge {
+    position: absolute;
+    top: 24px; right: 30px;
+    border: 3px dashed #e74c3c;
+    color: #e74c3c;
+    padding: 4px 12px;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    transform: rotate(6deg);
+    pointer-events: none;
+    opacity: 0.85;
+  }
+
+  button, .mil-btn {
+    background: linear-gradient(180deg, #2b3d4f, #1b2631);
+    color: #ecf0f1;
+    border: 2px solid #5dade2;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 8px rgba(0,0,0,0.6);
+    transition: all 0.1s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-transform: uppercase;
+  }
+  button:hover, .mil-btn:hover {
+    background: linear-gradient(180deg, #d35400, #a04000);
+    border-color: #f39c12;
+    color: #fff;
+    transform: translateY(-2px);
+  }
+  button:disabled, .cheat-btn:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    transform: none !important;
+    border-color: #555 !important;
+  }
+
+  .profile-input {
+    background: #081018;
+    border: 2px solid #34495e;
+    color: #f1c40f;
+    font-family: inherit;
+    font-weight: bold;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 4px;
+    outline: none;
+  }
+  .profile-input:focus { border-color: #5dade2; }
+
+  .lobby-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 16px;
+    width: 92%;
+    height: 72%;
+    margin-top: 10px;
+    text-align: left;
+  }
+  .panel-box {
+    background: rgba(8, 20, 32, 0.92);
+    border: 2px solid #2980b9;
+    padding: 14px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow-y: auto;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 900;
+    color: #5dade2;
+    border-bottom: 2px solid #2980b9;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .roster-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    max-height: 220px;
+  }
+  .roster-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid #34495e;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  .chat-box {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    height: 110px;
+    background: #050b11;
+    border: 1px solid #1f3a52;
+    border-radius: 4px;
+    padding: 6px;
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 11px;
+    color: #bdc3c7;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .chat-input-row { display: flex; gap: 4px; margin-top: 4px; }
+  .chat-input {
+    flex: 1;
+    background: #0d1821;
+    border: 1px solid #34495e;
+    color: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: 3px;
+  }
+
+  #hud {
+    position: absolute; top: 0; left: 0; width: 100%; height: 56px;
+    display: none; justify-content: space-between; align-items: center;
+    padding: 0 16px; font-weight: 900; font-size: 12px; z-index: 5;
+    background: linear-gradient(180deg, rgba(8, 20, 32, 0.95), rgba(8, 20, 32, 0.4));
+    border-bottom: 2px solid #2980b9;
+    cursor: default;
+  }
+  .hud-btn { min-width: auto; padding: 4px 8px; font-size: 11px; }
+
+  #hud-local-player {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .hud-hp-bar-container {
+    width: 140px;
+    height: 12px;
+    background: #112030;
+    border: 1px solid #34495e;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #hud-hp-bar-fill {
+    width: 100%;
+    height: 100%;
+    background: #2ecc71;
+    transition: width 0.1s ease;
+  }
+
+  #boss-bar-container {
+    position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+    width: 440px; background: rgba(5, 12, 20, 0.9); border: 2px solid #27ae60;
+    border-radius: 4px; padding: 4px 8px; display: none; flex-direction: column;
+    align-items: center; z-index: 6;
+  }
+  #boss-bar-fill {
+    width: 100%; height: 12px; background: #2ecc71; border-radius: 2px;
+    transition: width 0.1s ease, background-color 0.3s ease;
+  }
+  #boss-title-text { font-size: 11px; font-weight: 900; color: #2ecc71; letter-spacing: 2px; margin-bottom: 3px; }
+
+  #announcement-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(5, 12, 20, 0.92); display: none; flex-direction: column;
+    justify-content: center; align-items: center; z-index: 20; pointer-events: none;
+  }
+  #announcement-title { font-size: 38px; font-weight: 900; color: #f1c40f; letter-spacing: 4px; }
+  #announcement-sub { font-size: 18px; font-weight: 800; color: #5dade2; margin: 8px 0; }
+  #announcement-count { font-size: 60px; font-weight: 900; color: #e74c3c; }
+
+  #kill-banner {
+    position: absolute; top: 75px; left: 50%; transform: translateX(-50%);
+    background: rgba(231, 76, 60, 0.95); border: 2px solid #fff; padding: 6px 20px;
+    border-radius: 4px; font-size: 14px; font-weight: 900; color: #fff;
+    display: none; z-index: 15; pointer-events: none;
+  }
+
+  .pin-display {
+    font-size: 22px; font-weight: 900; color: #f1c40f; letter-spacing: 4px;
+    background: #081018; border: 2px dashed #f39c12; padding: 4px 12px; border-radius: 4px;
+  }
+
+  .cheat-panel {
+    display: none;
+    flex-direction: column;
+    background: #060e17;
+    border: 2px solid #e74c3c;
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 15px;
+    width: 480px;
+    text-align: left;
+  }
+  .cheat-btn {
+    padding: 6px 12px;
+    font-size: 10px;
+    background: #112030;
+    border: 1px solid #34495e;
+    color: #ecf0f1;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .cheat-btn.active {
+    background: #27ae60;
+    border-color: #2ecc71;
+    color: #fff;
+  }
+
+  /* Status Banner for Revoked Access */
+  #cheat-revoked-banner {
+    display: none;
+    background: rgba(192, 57, 43, 0.95);
+    border: 1px solid #e74c3c;
+    color: #ffffff;
+    font-weight: 900;
+    font-size: 11px;
+    text-align: center;
+    padding: 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="1100" height="700"></canvas>
+
+  <!-- ISOLATED LOCAL OPERATIVE HUD -->
+  <div id="hud">
+    <div id="hud-local-player">
+      <span id="hud-my-name" style="color:#5dade2;">OPERATIVE</span>
+      <div class="hud-hp-bar-container">
+        <div id="hud-hp-bar-fill"></div>
+      </div>
+      <span style="color:#2ecc71;">HP: <span id="hud-my-hp">100</span></span>
+      <span style="color:#f1c40f;">WEAPON: <span id="hud-my-gun">PISTOL</span></span>
+      <span id="hud-my-lives" style="letter-spacing:2px;">💙💙💙</span>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="color:#f1c40f;"><span id="hud-mode-info">WARZONE</span></span>
+      <button class="hud-btn" onclick="openSettingsModal()">⚙️ PAUSE</button>
+    </div>
+  </div>
+
+  <!-- BOSS BAR -->
+  <div id="boss-bar-container">
+    <div id="boss-title-text">LAKDI MAN // TIMBER TITAN</div>
+    <div style="width:100%; background:#1b2631; height:12px; border-radius:2px; overflow:hidden;">
+      <div id="boss-bar-fill"></div>
+    </div>
+  </div>
+
+  <div id="kill-banner">OPERATIVE ELIMINATED</div>
+
+  <div id="announcement-overlay">
+    <div id="announcement-title">WARZONE BRIEFING</div>
+    <div id="announcement-sub">TACTICAL DEPLOYMENT</div>
+    <div id="announcement-count">3</div>
+  </div>
+
+  <!-- MAIN MENU -->
+  <div id="screen-title" class="ui-screen blueprint-bg" style="display:flex;">
+    <div class="classified-badge">WAN P2P // 2026</div>
+    <h1 style="color:#5dade2; font-size:42px; letter-spacing:6px; margin-top:20px;">2D SHOOTER</h1>
+    <p style="color:#bdc3c7; font-size:12px; margin-bottom:20px; letter-spacing:2px;">WARZONE AUTHORITATIVE NETPLAY TERMINAL</p>
+
+    <div style="background:rgba(8,20,32,0.85); border:2px solid #3498db; padding:10px 20px; border-radius:4px; margin-bottom:20px;">
+      <span style="font-size:12px; color:#5dade2; font-weight:bold; margin-right:8px;">CALLSIGN:</span>
+      <input type="text" id="player-callsign-input" class="profile-input" style="width:180px; text-align:center;" value="OPERATIVE" maxlength="14" onchange="processCallsignInput()">
+      <div id="callsign-alert" style="font-size:10px; color:#e74c3c; margin-top:4px; display:none;">NOT A VALID NAME // ALREADY TAKEN</div>
+    </div>
+
+    <div style="display:flex; gap:20px; width:75%; justify-content:center;">
+      <div class="panel-box" style="flex:1; align-items:center;">
+        <h3 style="color:#3498db; margin-bottom:8px;">1. HOST OPERATION</h3>
+        <p style="font-size:11px; margin-bottom:14px; color:#bdc3c7;">Start server room on your PC</p>
+        <button onclick="createHostLobby()" style="background:linear-gradient(180deg,#2980b9,#1b4f72);">CREATE ROOM</button>
+      </div>
+
+      <div class="panel-box" style="flex:1; align-items:center;">
+        <h3 style="color:#e74c3c; margin-bottom:8px;">2. JOIN OPERATION</h3>
+        <p style="font-size:11px; margin-bottom:8px; color:#bdc3c7;">Enter 4-Digit PIN:</p>
+        <input type="text" id="join-pin-input" class="profile-input" style="width:120px; text-align:center; font-size:18px;" placeholder="4567" maxlength="6">
+        <button onclick="joinGuestLobby()" style="margin-top:10px; background:linear-gradient(180deg,#27ae60,#1e8449);">CONNECT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BRIEFING LOBBY -->
+  <div id="screen-lobby" class="ui-screen blueprint-bg">
+    <div class="classified-badge">BRIEFING ROOM</div>
+    <div style="display:flex; justify-content:space-between; width:92%; align-items:center;">
+      <h2 style="color:#5dade2; margin:0;">MISSION BRIEFING // LOBBY</h2>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:12px; color:#bdc3c7;">ROOM PIN:</span>
+        <span id="lobby-pin-display" class="pin-display">----</span>
+      </div>
+    </div>
+
+    <div class="lobby-grid">
+      <div class="panel-box">
+        <div class="panel-header">
+          <span>OPERATION CONFIGURATION</span>
+          <span id="host-auth-tag" style="color:#2ecc71; font-size:10px;">[HOST SERVER AUTHORITY]</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:12px;">
+          <div>
+            <span style="color:#f1c40f;">COMBAT MODE:</span>
+            <select id="lobby-mode-select" class="profile-input" style="width:100%; margin-top:4px;" onchange="updateLobbySettings()">
+              <option value="normal">⚔️ NORMAL COMBAT (Strictly 2 Players)</option>
+              <option value="tournament">🏆 TOURNAMENT LADDER (Strictly 2 Players)</option>
+              <option value="deathmatch">💥 DEATHMATCH (Up to 4 Players)</option>
+              <option value="boss">👹 CO-OP BOSS HUNT (Up to 4 Players)</option>
+            </select>
+          </div>
+
+          <div>
+            <span style="color:#f1c40f;">DIFFICULTY MATRIX:</span>
+            <select id="lobby-diff-select" class="profile-input" style="width:100%; margin-top:4px;" onchange="updateLobbySettings()">
+              <option value="easy">🟢 EASY (350 HP Boss / Wide Spread)</option>
+              <option value="med">🟡 MEDIUM (450 HP Boss / Balanced)</option>
+              <option value="hard">🟠 HARD (500 HP Boss / Armored Phase 2)</option>
+              <option value="impossible">🔴 IMPOSSIBLE (600 HP Boss / Laser Volleys)</option>
+            </select>
+          </div>
+
+          <div>
+            <span style="color:#f1c40f;">SECTOR / MAP:</span>
+            <select id="lobby-map-select" class="profile-input" style="width:100%; margin-top:4px;" onchange="updateLobbySettings()">
+              <option value="apex">⛰️ APEX PEAK (Mountain & Thrust Shaft)</option>
+              <option value="city">🏙️ NEON ROOFTOPS (Staggered Balconies)</option>
+            </select>
+          </div>
+
+          <div style="margin-top:auto; display:flex; flex-direction:column; gap:8px;">
+            <button id="dummy-test-btn" onclick="spawnDummyClient()" style="display:none; background:linear-gradient(180deg,#8e44ad,#5b2c6f);">🧪 SPAWN LOCAL DUMMY GUEST</button>
+            <button id="lobby-launch-btn" onclick="launchNetworkMatch()" style="width:100%; padding:14px; background:linear-gradient(180deg,#27ae60,#1e8449);">DEPLOY SQUAD &rarr;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-header">
+          <span>OPERATIVE MANIFEST</span>
+          <span id="player-count-indicator" style="color:#f1c40f;">1 / 2 READY</span>
+        </div>
+
+        <div id="lobby-roster" class="roster-list"></div>
+
+        <div class="chat-box">
+          <div id="lobby-chat-messages" class="chat-messages">
+            <div><span style="color:#2ecc71;">[SYSTEM]:</span> Encrypted tactical link ready.</div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="lobby-chat-input" class="chat-input" placeholder="Type transmission..." onkeydown="if(event.key==='Enter')sendLobbyChat()">
+            <button onclick="sendLobbyChat()" style="min-width:auto; padding:2px 8px; font-size:10px;">SEND</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="exitLobby()" style="margin-top:10px;">ABORT TO TERMINAL</button>
+  </div>
+
+  <!-- SETTINGS & DEV CONSOLE -->
+  <div id="screen-settings" class="ui-screen blueprint-bg">
+    <h2 style="color:#f1c40f; margin-bottom:12px;">TACTICAL PAUSE</h2>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <button onclick="resumeGame()">RESUME OPERATION</button>
+      <button onclick="exitToMainMenu()">ABORT TO TERMINAL</button>
+    </div>
+
+    <!-- CHEAT PANEL WITH REVOCATION GUARD -->
+    <div id="cheat-panel-container" class="cheat-panel">
+      <div id="cheat-revoked-banner">⚠️ CHEAT ACCESS REVOKED — SETTINGS LOCKED</div>
+
+      <div style="color:#e74c3c; font-size:12px; font-weight:900; border-bottom:1px solid #e74c3c; padding-bottom:4px; margin-bottom:8px; display:flex; justify-content:space-between;">
+        <span>[DEV OVERRIDE TERMINAL]</span>
+        <span id="dev-tier-tag" style="color:#f1c40f;">TIER 1 (STANDARD)</span>
+      </div>
+
+      <!-- Root Passcode Input -->
+      <div id="root-verify-wrap" style="display:none; margin-bottom:10px; background:#0e1722; padding:6px; border-radius:3px;">
+        <span style="font-size:11px; color:#5dade2;">ENTER ROOT ACCESS CODE:</span>
+        <input type="password" id="root-pass-input" class="profile-input" style="width:100px; padding:2px 6px; font-size:11px; margin:0 6px;" maxlength="8">
+        <button id="auth-root-btn" class="cheat-btn" onclick="verifyRootPasscode()">AUTHENTICATE</button>
+      </div>
+
+      <!-- Cheats Grid -->
+      <div id="cheat-toggles-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button id="cheat-btn-god" class="cheat-btn" onclick="toggleCheat('godMode')">🛡️ GOD MODE: OFF</button>
+        <button id="cheat-btn-fuel" class="cheat-btn" onclick="toggleCheat('infiniteFuel')">⚡ INF JETPACK: OFF</button>
+        <button id="cheat-btn-rapid" class="cheat-btn" onclick="toggleCheat('rapidFire')">🔥 RAPID FIRE: OFF</button>
+        <button id="cheat-btn-onehit" class="cheat-btn" onclick="toggleCheat('oneHitKill')">💥 1-HIT KILL: OFF</button>
+      </div>
+
+      <!-- Master Privileges / Revocation Bar -->
+      <div id="master-powers-wrap" style="display:none; margin-top:8px; border-top:1px dashed #e74c3c; padding-top:6px;">
+        <div style="font-size:10px; color:#f1c40f; margin-bottom:4px;">MASTER PRIVILEGES:</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button id="nullify-opponents-btn" class="cheat-btn" style="border-color:#e74c3c; width:100%;" onclick="nullifyEnemyCheats()">🚫 NULLIFY ALL ENEMY "KUNAL." BUFFS</button>
+          <button id="revoke-kunal-btn" class="cheat-btn" style="background:#c0392b; border-color:#e74c3c; color:#fff; width:100%; font-weight:bold;" onclick="revokeKunalAccess()">🔒 REVOKE ACCESS FROM KUNAL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="screen-match-result" class="ui-screen blueprint-bg">
+    <h2 id="match-win-header" style="color:#f1c40f; font-size:26px; margin-bottom:6px;">OPERATION COMPLETE</h2>
+    <h1 id="match-winner-text" style="color:#2ecc71; font-size:38px; margin-bottom:12px;">VICTORY</h1>
+    <p id="match-final-score" style="font-size:16px; color:#5dade2; margin-bottom:20px;">Score</p>
+    <div style="display:flex; gap:10px;">
+      <button onclick="redeployNetworkMatch()">RE-DEPLOY</button>
+      <button onclick="exitToMainMenu()">RETURN TO TERMINAL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const VIEW_W = 1100;
+const VIEW_H = 700;
+const MAP_W = 3200;
+const MAP_H = 1100;
+const GRAVITY = 1150;
+
+const PEER_CONFIG = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  }
+};
+
+const WEAPONS = {
+  pistol:  { name: "PISTOL",  damage: 22, cooldown: 0.28, speed: 950,  spread: 0,    count: 1, color: "#f39c12", life: 3.5 },
+  smg:     { name: "SMG",     damage: 10, cooldown: 0.08, speed: 1000, spread: 0.12, count: 1, color: "#f1c40f", life: 2.8 },
+  shotgun: { name: "SHOTGUN", damage: 11, cooldown: 0.70, speed: 850,  spread: 0.32, count: 8, color: "#e67e22", life: 1.8 },
+  sniper:  { name: "SNIPER",  damage: 80, cooldown: 1.15, speed: 1700, spread: 0,    count: 1, color: "#e74c3c", life: 4.0 },
+  boss_thorns: { name: "THORNS", damage: 15, cooldown: 0.85, speed: 700, spread: 0.50, count: 7, color: "#2ecc71", life: 4.0 }
+};
+const WEAPON_KEYS = ["pistol", "smg", "shotgun", "sniper"];
+const PLAYER_COLORS = ["#3498db", "#e74c3c", "#2ecc71", "#f1c40f"];
+
+let keyState = {};
+let mouse = { x: 550, y: 350, worldX: 550, worldY: 350, isDown: false };
+
+let selectedMode = "normal";
+let selectedDiff = "easy";
+let selectedMap = "apex";
+let maxPlayersForMode = 2;
+
+let scoreMap = {};
+let currentRound = 1;
+let tournamentGuns = ["pistol", "smg", "shotgun", "sniper", "sniper"];
+let gameState = "MENU";
+let prevGameState = "PLAYING";
+let countdownRemaining = 0;
+
+let players = [];
+let boss = null;
+let bullets = [];
+let platforms = [];
+let jumpPads = [];
+let particles = [];
+let floatingTexts = [];
+let cam = { x: 0, y: 0 };
+
+let bossConfig = { hpPerPhase: 350, speed: 120, attackInterval: 2.5, thornCount: 4, thornSpeed: 580, spread: 0.65, stompCooldown: 9.5, barkArmor: 0.0 };
+let bossState = { phase: 1, maxHp: 350, hp: 350, attackTimer: 2.0, stompTimer: 7.0, facingDir: -1, stunTimer: 0, enraged: false };
+
+let rawCallsign = sessionStorage.getItem("shooter_net_callsign") || ("OPERATIVE-" + Math.floor(100 + Math.random() * 900));
+let displayCallsign = rawCallsign;
+
+// Developer Authority & Revocation State
+let devStatus = { isKunalDot: false, isKunalMaster: false, rootVerified: false, isRevoked: false };
+let localCheats = { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false };
+
+let peer = null;
+let guestConnections = [];
+let hostConn = null;
+let isHost = false;
+let myPlayerId = 1;
+let currentRoomPIN = "";
+let lobbyManifest = [];
+let localDummyActive = false;
+
+// Background Web Worker to keep Host game loop updating at 60 FPS regardless of focus
+let bgWorker = null;
+function initBackgroundWorker() {
+  const blob = new Blob([`
+    let interval = null;
+    self.onmessage = function(e) {
+      if (e.data === 'START') {
+        if (!interval) interval = setInterval(() => self.postMessage('TICK'), 1000 / 60);
+      } else if (e.data === 'STOP') {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+  `], { type: 'application/javascript' });
+  bgWorker = new Worker(URL.createObjectURL(blob));
+  bgWorker.onmessage = () => {
+    if (isHost && (gameState === "PLAYING" || gameState === "ANNOUNCING")) {
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+      update(dt);
+    }
+  };
+}
+initBackgroundWorker();
+
+function processCallsignInput() {
+  const input = document.getElementById("player-callsign-input");
+  let val = input.value.trim();
+
+  devStatus.isKunalDot = false;
+  devStatus.isKunalMaster = false;
+  devStatus.rootVerified = false;
+  devStatus.isRevoked = false;
+
+  if (val === "kunal()") {
+    devStatus.isKunalMaster = true;
+    displayCallsign = "kunal";
+    val = "kunal";
+  } else if (val === "kunal.") {
+    devStatus.isKunalDot = true;
+    displayCallsign = "kunal.";
+  } else {
+    displayCallsign = val || "OPERATIVE";
+  }
+
+  rawCallsign = val;
+  sessionStorage.setItem("shooter_net_callsign", rawCallsign);
+  document.getElementById("callsign-alert").style.display = "none";
+}
+document.getElementById("player-callsign-input").value = rawCallsign;
+processCallsignInput();
+
+function getMaxAllowedPlayers(mode) {
+  if (mode === "normal" || mode === "tournament") return 2;
+  if (mode === "deathmatch" || mode === "boss") return 4;
+  return 2;
+}
+
+function generateRandomPIN() { return Math.floor(1000 + Math.random() * 9000).toString(); }
+
+function createHostLobby() {
+  currentRoomPIN = generateRandomPIN();
+  const roomID = "shooter-warzone-v7-" + currentRoomPIN;
+
+  cleanupNetwork();
+  peer = new Peer(roomID, PEER_CONFIG);
+
+  peer.on("open", () => {
+    isHost = true;
+    myPlayerId = 1;
+    guestConnections = [];
+    maxPlayersForMode = getMaxAllowedPlayers(selectedMode);
+
+    lobbyManifest = [{
+      id: 1, name: displayCallsign, role: "HOST", color: PLAYER_COLORS[0],
+      rawName: rawCallsign, isKunalDot: devStatus.isKunalDot, isKunalMaster: devStatus.isKunalMaster
+    }];
+
+    document.getElementById("lobby-pin-display").innerText = currentRoomPIN;
+    document.getElementById("host-auth-tag").innerText = "[HOST SERVER RUNNING]";
+    document.getElementById("lobby-launch-btn").style.display = "block";
+    document.getElementById("dummy-test-btn").style.display = "block";
+    document.getElementById("lobby-mode-select").disabled = false;
+    document.getElementById("lobby-diff-select").disabled = false;
+    document.getElementById("lobby-map-select").disabled = false;
+
+    renderRoster();
+    navTo('lobby');
+    bgWorker.postMessage('START');
+  });
+
+  peer.on("connection", (conn) => {
+    if (lobbyManifest.length >= maxPlayersForMode) {
+      conn.on("open", () => {
+        conn.send({ type: "REJECT", reason: "ROOM_FULL" });
+        setTimeout(() => conn.close(), 500);
+      });
+      return;
+    }
+
+    conn.on("data", (data) => {
+      if (data.type === "JOIN_REQUEST") {
+        if (data.rawName === "kunal." && lobbyManifest.some(p => p.rawName === "kunal.")) {
+          conn.send({ type: "REJECT", reason: "INVALID_NAME" });
+          setTimeout(() => conn.close(), 500);
+          return;
+        }
+        if (lobbyManifest.some(p => p.name.toLowerCase() === data.name.toLowerCase())) {
+          conn.send({ type: "REJECT", reason: "NAME_TAKEN" });
+          setTimeout(() => conn.close(), 500);
+          return;
+        }
+
+        const assignedId = lobbyManifest.length + 1;
+        conn.assignedId = assignedId;
+        guestConnections.push(conn);
+
+        lobbyManifest.push({
+          id: assignedId, name: data.name, role: "GUEST", color: PLAYER_COLORS[assignedId - 1],
+          rawName: data.rawName, isKunalDot: data.isKunalDot, isKunalMaster: data.isKunalMaster, cheatsNullified: false
+        });
+
+        conn.send({ type: "JOIN_ACCEPTED", assignedId: assignedId, mode: selectedMode, diff: selectedDiff, map: selectedMap });
+        broadcastLobbyState();
+        renderRoster();
+        appendLobbyChat("SYSTEM", `${data.name} connected.`);
+      } else if (data.type === "INPUT") {
+        const p = players.find(x => x.id === conn.assignedId);
+        if (p && p.hp > 0) {
+          p.inputKeys = data.keys;
+          p.aimAngle = data.aimAngle;
+          p.mouseIsDown = data.isMouseDown;
+          if (data.switchGun && selectedMode !== "tournament") p.gun = data.switchGun;
+        }
+      } else if (data.type === "CHEAT_SYNC") {
+        const p = players.find(x => x.id === conn.assignedId);
+        if (p && !p.cheatsNullified) {
+          p.cheats = data.cheats;
+        }
+      } else if (data.type === "CHAT") {
+        appendLobbyChat(data.sender, data.text);
+        guestConnections.forEach(c => {
+          if (c !== conn && c.open) c.send(data);
+        });
+      }
+    });
+
+    conn.on("close", () => {
+      lobbyManifest = lobbyManifest.filter(x => x.id !== conn.assignedId);
+      guestConnections = guestConnections.filter(c => c !== conn);
+      broadcastLobbyState();
+      renderRoster();
+      appendLobbyChat("SYSTEM", "An operative disconnected.");
+    });
+  });
+
+  peer.on("error", (err) => { alert("Peer Server Error: " + err.type); });
+}
+
+function joinGuestLobby() {
+  const pin = document.getElementById("join-pin-input").value.trim();
+  if (!pin) return alert("Enter the 4-digit PIN!");
+
+  currentRoomPIN = pin;
+  const roomID = "shooter-warzone-v7-" + pin;
+
+  cleanupNetwork();
+  peer = new Peer(PEER_CONFIG);
+
+  peer.on("open", () => {
+    hostConn = peer.connect(roomID, { reliable: true });
+    isHost = false;
+
+    hostConn.on("open", () => {
+      hostConn.send({
+        type: "JOIN_REQUEST", name: displayCallsign, rawName: rawCallsign,
+        isKunalDot: devStatus.isKunalDot, isKunalMaster: devStatus.isKunalMaster
+      });
+    });
+
+    hostConn.on("data", (data) => {
+      if (data.type === "JOIN_ACCEPTED") {
+        myPlayerId = data.assignedId;
+        selectedMode = data.mode;
+        selectedDiff = data.diff;
+        selectedMap = data.map;
+
+        document.getElementById("lobby-pin-display").innerText = currentRoomPIN;
+        document.getElementById("host-auth-tag").innerText = "[CONNECTED TO HOST]";
+        document.getElementById("lobby-launch-btn").style.display = "none";
+        document.getElementById("dummy-test-btn").style.display = "none";
+        document.getElementById("lobby-mode-select").disabled = true;
+        document.getElementById("lobby-diff-select").disabled = true;
+        document.getElementById("lobby-map-select").disabled = true;
+        navTo('lobby');
+      } else if (data.type === "REJECT") {
+        document.getElementById("callsign-alert").innerText = data.reason === "INVALID_NAME" ? "NOT A VALID NAME // KUNAL. ALREADY CLAIMED" : "ROOM IS FULL OR NAME TAKEN";
+        document.getElementById("callsign-alert").style.display = "block";
+        exitToMainMenu();
+      } else if (data.type === "LOBBY_STATE") {
+        lobbyManifest = data.players;
+        selectedMode = data.mode;
+        selectedDiff = data.diff;
+        selectedMap = data.map;
+        maxPlayersForMode = data.maxPlayers;
+        document.getElementById("lobby-mode-select").value = data.mode;
+        document.getElementById("lobby-diff-select").value = data.diff;
+        document.getElementById("lobby-map-select").value = data.map;
+        renderRoster();
+      } else if (data.type === "LAUNCH_MATCH") {
+        selectedMode = data.mode;
+        selectedDiff = data.diff;
+        selectedMap = data.map;
+        startMatch();
+      } else if (data.type === "SYNC") {
+        gameState = data.gameState;
+        scoreMap = data.scoreMap;
+        if (gameState === "PLAYING") document.getElementById("announcement-overlay").style.display = "none";
+
+        players = data.players;
+        boss = data.boss;
+        bossState = data.bossState;
+        bullets = data.bullets || [];
+
+        const me = data.players.find(p => p.id === myPlayerId);
+        if (me && me.cheatsNullified && !devStatus.isRevoked) {
+          revokeKunalAccess();
+        }
+      } else if (data.type === "HIT_FEEDBACK") {
+        emitFloatingText(data.x, data.y - 30, `-${data.dmg} (${data.text})`, data.color);
+        if (data.headshot) {
+          emitParticles(data.x, data.y, "#f1c40f", 6, 80, 0.3, 3);
+        }
+      } else if (data.type === "CHAT") {
+        appendLobbyChat(data.sender, data.text);
+      }
+    });
+
+    hostConn.on("close", () => {
+      alert("Host Server Disconnected.");
+      exitToMainMenu();
+    });
+  });
+
+  peer.on("error", () => { alert("Failed to connect to PIN: " + pin); });
+}
+
+function spawnDummyClient() {
+  if (!isHost || lobbyManifest.length >= maxPlayersForMode) return;
+  const dummyId = lobbyManifest.length + 1;
+  lobbyManifest.push({
+    id: dummyId, name: "TARGET_DUMMY", role: "BOT_GUEST", color: PLAYER_COLORS[dummyId - 1],
+    rawName: "TARGET_DUMMY", isKunalDot: false, isKunalMaster: false, cheatsNullified: false
+  });
+  localDummyActive = true;
+  broadcastLobbyState();
+  renderRoster();
+  appendLobbyChat("SYSTEM", "Local target dummy connected.");
+}
+
+function broadcastLobbyState() {
+  if (!isHost) return;
+  const payload = {
+    type: "LOBBY_STATE", players: lobbyManifest, mode: selectedMode,
+    diff: selectedDiff, map: selectedMap, maxPlayers: maxPlayersForMode
+  };
+  guestConnections.forEach(c => { if (c.open) c.send(payload); });
+}
+
+function updateLobbySettings() {
+  if (!isHost) return;
+  selectedMode = document.getElementById("lobby-mode-select").value;
+  selectedDiff = document.getElementById("lobby-diff-select").value;
+  selectedMap = document.getElementById("lobby-map-select").value;
+  maxPlayersForMode = getMaxAllowedPlayers(selectedMode);
+  broadcastLobbyState();
+  renderRoster();
+}
+
+function renderRoster() {
+  const container = document.getElementById("lobby-roster");
+  container.innerHTML = "";
+  lobbyManifest.forEach((p) => {
+    const card = document.createElement("div");
+    card.className = "roster-card";
+    card.style.borderColor = p.color;
+    card.innerHTML = `
+      <span style="color:${p.color};">● SLOT 0${p.id}: <b style="color:#f1c40f;">${p.name}</b> [${p.role}]</span>
+      <span style="color:#2ecc71;">READY</span>
+    `;
+    container.appendChild(card);
+  });
+  document.getElementById("player-count-indicator").innerText = `${lobbyManifest.length} / ${maxPlayersForMode} READY`;
+}
+
+function sendLobbyChat() {
+  const input = document.getElementById("lobby-chat-input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = "";
+
+  appendLobbyChat(displayCallsign, msg);
+  const data = { type: "CHAT", sender: displayCallsign, text: msg };
+
+  if (isHost) {
+    guestConnections.forEach(c => { if (c.open) c.send(data); });
+  } else if (hostConn && hostConn.open) {
+    hostConn.send(data);
+  }
+}
+
+function appendLobbyChat(sender, text) {
+  const box = document.getElementById("lobby-chat-messages");
+  const el = document.createElement("div");
+  el.innerHTML = `<span style="color:#5dade2;">[${sender}]:</span> ${text}`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+
+function launchNetworkMatch() {
+  if (!isHost) return;
+  guestConnections.forEach(c => {
+    if (c.open) c.send({ type: "LAUNCH_MATCH", mode: selectedMode, diff: selectedDiff, map: selectedMap });
+  });
+  startMatch();
+}
+
+function cleanupNetwork() {
+  if (bgWorker) bgWorker.postMessage('STOP');
+  if (hostConn) { try { hostConn.close(); } catch(e){} hostConn = null; }
+  guestConnections.forEach(c => { try { c.close(); } catch(e){} });
+  guestConnections = [];
+  if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+  isHost = false;
+  localDummyActive = false;
+}
+
+function exitLobby() {
+  cleanupNetwork();
+  navTo('title');
+}
+
+function hideAllScreens() {
+  document.querySelectorAll(".ui-screen").forEach(el => el.style.display = "none");
+  document.getElementById("hud").style.display = "none";
+  document.getElementById("boss-bar-container").style.display = "none";
+  document.getElementById("announcement-overlay").style.display = "none";
+  document.getElementById("kill-banner").style.display = "none";
+}
+
+function navTo(screen) {
+  hideAllScreens();
+  if (screen === 'title') document.getElementById("screen-title").style.display = "flex";
+  if (screen === 'lobby') document.getElementById("screen-lobby").style.display = "flex";
+  if (screen === 'match-result') document.getElementById("screen-match-result").style.display = "flex";
+}
+
+function redeployNetworkMatch() {
+  if (isHost) launchNetworkMatch();
+}
+
+function openSettingsModal() {
+  prevGameState = gameState;
+  gameState = "PAUSED";
+  document.getElementById("screen-settings").style.display = "flex";
+
+  const cheatBox = document.getElementById("cheat-panel-container");
+  const rootWrap = document.getElementById("root-verify-wrap");
+  const masterWrap = document.getElementById("master-powers-wrap");
+  const banner = document.getElementById("cheat-revoked-banner");
+  const devTierTag = document.getElementById("dev-tier-tag");
+
+  if (devStatus.isRevoked) {
+    cheatBox.style.display = "flex";
+    banner.style.display = "block";
+    devTierTag.innerText = "ACCESS REVOKED // LOCKED";
+    devTierTag.style.color = "#e74c3c";
+    rootWrap.style.display = "none";
+    masterWrap.style.display = "none";
+    disableCheatUIControls(true);
+    return;
+  }
+
+  banner.style.display = "none";
+  disableCheatUIControls(false);
+
+  if (devStatus.isKunalDot || devStatus.isKunalMaster) {
+    cheatBox.style.display = "flex";
+    if (devStatus.isKunalMaster) {
+      if (!devStatus.rootVerified) {
+        rootWrap.style.display = "block";
+        masterWrap.style.display = "none";
+        devTierTag.innerText = "TIER 1 (AWAITING ROOT)";
+        devTierTag.style.color = "#f1c40f";
+      } else {
+        rootWrap.style.display = "none";
+        masterWrap.style.display = "block";
+        devTierTag.innerText = "TIER 2 (MASTER ROOT)";
+        devTierTag.style.color = "#2ecc71";
+      }
+    } else {
+      rootWrap.style.display = "none";
+      masterWrap.style.display = "none";
+      devTierTag.innerText = "TIER 1 (STANDARD)";
+      devTierTag.style.color = "#f1c40f";
+    }
+  } else {
+    cheatBox.style.display = "none";
+  }
+}
+
+function resumeGame() {
+  document.getElementById("screen-settings").style.display = "none";
+  gameState = prevGameState;
+}
+
+function exitToMainMenu() {
+  cleanupNetwork();
+  gameState = "MENU";
+  navTo('title');
+}
+
+function verifyRootPasscode() {
+  if (devStatus.isRevoked) return;
+  const code = document.getElementById("root-pass-input").value.trim();
+  if (code === "42006") {
+    devStatus.rootVerified = true;
+    document.getElementById("root-verify-wrap").style.display = "none";
+    document.getElementById("master-powers-wrap").style.display = "block";
+    document.getElementById("dev-tier-tag").innerText = "TIER 2 (MASTER ROOT)";
+    document.getElementById("dev-tier-tag").style.color = "#2ecc71";
+    alert("ROOT AUTHENTICATED // MASTER OVERRIDE GRANTED");
+  } else {
+    alert("INVALID ACCESS CODE");
+  }
+}
+
+function disableCheatUIControls(locked) {
+  const btns = ["cheat-btn-god", "cheat-btn-fuel", "cheat-btn-rapid", "cheat-btn-onehit", "nullify-opponents-btn", "revoke-kunal-btn", "auth-root-btn"];
+  btns.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = locked;
+  });
+  const passIn = document.getElementById("root-pass-input");
+  if (passIn) passIn.disabled = locked;
+}
+
+// ATOMIC REVOCATION SYSTEM
+function revokeKunalAccess() {
+  // 1. Revoke Permissions
+  devStatus.isRevoked = true;
+  devStatus.rootVerified = false;
+  devStatus.isKunalDot = false;
+  devStatus.isKunalMaster = false;
+
+  // 2. Disable All Active Buffs
+  localCheats.godMode = false;
+  localCheats.infiniteFuel = false;
+  localCheats.rapidFire = false;
+  localCheats.oneHitKill = false;
+
+  // 3. Restore Normal Operative Stats & Reset Multipliers
+  const myPlayer = players.find(p => p.id === myPlayerId);
+  if (myPlayer) {
+    myPlayer.cheats = { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false };
+    myPlayer.cheatsNullified = true;
+    myPlayer.speed = 340;
+    myPlayer.jumpForce = 620;
+    myPlayer.recoil = 0;
+    myPlayer.cooldownTimer = 0;
+    if (myPlayer.hp > 100) myPlayer.hp = 100;
+  }
+
+  // 4. Propagate Revocation Over Network
+  if (isHost) {
+    if (myPlayer) myPlayer.cheatsNullified = true;
+  } else if (hostConn && hostConn.open) {
+    hostConn.send({ type: "CHEAT_SYNC", cheats: { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false } });
+  }
+
+  // 5. Update UI & Lock Controls
+  updateCheatUIButtons();
+  disableCheatUIControls(true);
+
+  document.getElementById("cheat-revoked-banner").style.display = "block";
+  document.getElementById("master-powers-wrap").style.display = "none";
+  document.getElementById("root-verify-wrap").style.display = "none";
+  const tag = document.getElementById("dev-tier-tag");
+  tag.innerText = "ACCESS REVOKED // LOCKED";
+  tag.style.color = "#e74c3c";
+
+  alert("SECURITY OVERRIDE: Kunal's cheat access has been permanently REVOKED. All active buffs disabled and stats restored.");
+}
+
+function toggleCheat(key) {
+  // Prevent any execution if access has been revoked
+  if (devStatus.isRevoked) {
+    alert("ACCESS REVOKED: Cheat controls are locked.");
+    return;
+  }
+
+  localCheats[key] = !localCheats[key];
+  updateCheatUIButtons();
+
+  if (isHost) {
+    const me = players.find(p => p.id === 1);
+    if (me) me.cheats = { ...localCheats };
+  } else if (hostConn && hostConn.open) {
+    hostConn.send({ type: "CHEAT_SYNC", cheats: { ...localCheats } });
+  }
+}
+
+function updateCheatUIButtons() {
+  document.getElementById("cheat-btn-god").classList.toggle("active", localCheats.godMode);
+  document.getElementById("cheat-btn-fuel").classList.toggle("active", localCheats.infiniteFuel);
+  document.getElementById("cheat-btn-rapid").classList.toggle("active", localCheats.rapidFire);
+  document.getElementById("cheat-btn-onehit").classList.toggle("active", localCheats.oneHitKill);
+
+  document.getElementById("cheat-btn-god").innerText = `🛡️ GOD MODE: ${localCheats.godMode ? 'ON' : 'OFF'}`;
+  document.getElementById("cheat-btn-fuel").innerText = `⚡ INF JETPACK: ${localCheats.infiniteFuel ? 'ON' : 'OFF'}`;
+  document.getElementById("cheat-btn-rapid").innerText = `🔥 RAPID FIRE: ${localCheats.rapidFire ? 'ON' : 'OFF'}`;
+  document.getElementById("cheat-btn-onehit").innerText = `💥 1-HIT KILL: ${localCheats.oneHitKill ? 'ON' : 'OFF'}`;
+}
+
+function nullifyEnemyCheats() {
+  if (devStatus.isRevoked || !devStatus.rootVerified) return;
+  if (isHost) {
+    players.forEach(p => {
+      if (p.id !== myPlayerId && p.rawName === "kunal.") {
+        p.cheatsNullified = true;
+        p.cheats = { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false };
+      }
+    });
+    alert("NULLIFIER EXECUTED // OPPONENT BUFFS SHUT DOWN");
+  }
+}
+
+function emitParticles(x, y, color, count, speed, life = 0.25, size = 2) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random() - 0.5) * speed, vy: (Math.random() - 0.5) * speed + 20,
+      life: life, maxLife: life, color: color, size: size
+    });
+  }
+}
+
+function emitFloatingText(x, y, text, color) {
+  floatingTexts.push({ x, y, text, color, life: 0.8, vy: -35 });
+}
+
+function initMap(mapName) {
+  platforms = [];
+  jumpPads = [];
+  platforms.push({ x: 0, y: 1020, w: MAP_W, h: 80, type: 'ground' });
+
+  if (mapName === "apex") {
+    platforms.push({ x: 0, y: 720, w: 260, h: 300, type: 'cover' });
+    platforms.push({ x: MAP_W - 260, y: 720, w: 260, h: 300, type: 'cover' });
+    jumpPads.push({ x: 10, y: 685, w: 50, h: 35, powerX: 950, powerY: -1150 });
+    jumpPads.push({ x: MAP_W - 60, y: 685, w: 50, h: 35, powerX: -950, powerY: -1150 });
+
+    platforms.push({ x: 300, y: 910, w: 1250, h: 35, type: 'cover' });
+    platforms.push({ x: 1650, y: 910, w: 1250, h: 35, type: 'cover' });
+    platforms.push({ x: 660, y: 740, w: 320, h: 170, type: 'cover' });
+    platforms.push({ x: 1300, y: 380, w: 250, h: 530, type: 'cover' });
+    platforms.push({ x: 1650, y: 380, w: 250, h: 530, type: 'cover' });
+    platforms.push({ x: 2220, y: 740, w: 320, h: 170, type: 'cover' });
+
+    platforms.push({ x: 1360, y: 340, w: 190, h: 40, type: 'platform' });
+    platforms.push({ x: 1650, y: 340, w: 190, h: 40, type: 'platform' });
+    jumpPads.push({ x: 1550, y: 340, w: 100, h: 680, powerX: 0, powerY: -1250 });
+  } else {
+    platforms.push({ x: 100, y: 620, w: 480, h: 400, type: 'cover' });
+    platforms.push({ x: 680, y: 520, w: 420, h: 420, type: 'cover' });
+    platforms.push({ x: 1200, y: 420, w: 540, h: 600, type: 'cover' });
+    platforms.push({ x: 1840, y: 680, w: 320, h: 260, type: 'cover' });
+    platforms.push({ x: 2260, y: 340, w: 840, h: 680, type: 'cover' });
+  }
+}
+
+function applyBossDifficultySettings() {
+  if (selectedDiff === "easy") {
+    bossConfig.hpPerPhase = 350; bossConfig.speed = 120; bossConfig.attackInterval = 2.5;
+    bossConfig.thornCount = 4; bossConfig.thornSpeed = 580; bossConfig.spread = 0.65;
+    bossConfig.stompCooldown = 9.5; bossConfig.barkArmor = 0.0;
+  } else if (selectedDiff === "med") {
+    bossConfig.hpPerPhase = 450; bossConfig.speed = 155; bossConfig.attackInterval = 1.9;
+    bossConfig.thornCount = 6; bossConfig.thornSpeed = 680; bossConfig.spread = 0.50;
+    bossConfig.stompCooldown = 7.5; bossConfig.barkArmor = 0.25;
+  } else if (selectedDiff === "hard") {
+    bossConfig.hpPerPhase = 500; bossConfig.speed = 190; bossConfig.attackInterval = 1.4;
+    bossConfig.thornCount = 8; bossConfig.thornSpeed = 780; bossConfig.spread = 0.40;
+    bossConfig.stompCooldown = 5.5; bossConfig.barkArmor = 0.40;
+  } else if (selectedDiff === "impossible") {
+    bossConfig.hpPerPhase = 600; bossConfig.speed = 230; bossConfig.attackInterval = 1.0;
+    bossConfig.thornCount = 10; bossConfig.thornSpeed = 890; bossConfig.spread = 0.28;
+    bossConfig.stompCooldown = 4.0; bossConfig.barkArmor = 0.55;
+  }
+}
+
+function startMatch() {
+  hideAllScreens();
+  document.getElementById("hud").style.display = "flex";
+
+  initMap(selectedMap);
+  bullets = [];
+  particles = [];
+  floatingTexts = [];
+  scoreMap = {};
+
+  if (isHost) {
+    players = [];
+    const spawnOffsets = [250, MAP_W - 250, 600, MAP_W - 600];
+
+    lobbyManifest.forEach((m, idx) => {
+      scoreMap[m.id] = 0;
+      players.push({
+        id: m.id, name: m.name, rawName: m.rawName, color: m.color,
+        x: spawnOffsets[idx % 4], y: 660, width: 22, height: 46,
+        vx: 0, vy: 0, speed: 340, jumpForce: 620, hp: 100, lives: 3,
+        fuel: 100, fuelCool: 0, onGround: false, facingDir: 1, aimAngle: 0,
+        gun: selectedMode === "tournament" ? tournamentGuns[(currentRound - 1) % tournamentGuns.length] : "pistol",
+        cooldownTimer: 0, recoil: 0, spawnProtTimer: 2.0, jumpPadCooldown: 0,
+        inputKeys: {}, mouseIsDown: false, cheatsNullified: devStatus.isRevoked,
+        cheats: { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false }
+      });
+    });
+
+    if (selectedMode === "boss") {
+      applyBossDifficultySettings();
+      bossState.phase = 1;
+      bossState.maxHp = bossConfig.hpPerPhase;
+      bossState.hp = bossConfig.hpPerPhase;
+      bossState.attackTimer = bossConfig.attackInterval;
+      bossState.stompTimer = bossConfig.stompCooldown;
+      bossState.stunTimer = 0;
+      bossState.enraged = false;
+
+      boss = { x: 1600, y: 260, width: 50, height: 90, vx: 0, vy: 0, onGround: false };
+      document.getElementById("boss-bar-container").style.display = "flex";
+      document.getElementById("boss-title-text").innerText = `LAKDI MAN [${selectedDiff.toUpperCase()}] // PHASE 1`;
+      document.getElementById("boss-bar-fill").style.backgroundColor = "#2ecc71";
+      document.getElementById("boss-bar-fill").style.width = "100%";
+    } else {
+      boss = null;
+      document.getElementById("boss-bar-container").style.display = "none";
+    }
+
+    gameState = "ANNOUNCING";
+    countdownRemaining = 3.2;
+    document.getElementById("announcement-overlay").style.display = "flex";
+    document.getElementById("announcement-title").innerText = selectedMode === "boss" ? `LAKDI MAN [${selectedDiff.toUpperCase()}]` : "TACTICAL DEPLOYMENT";
+    document.getElementById("announcement-sub").innerText = selectedMode.toUpperCase();
+  }
+}
+
+canvas.addEventListener("mousemove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+});
+canvas.addEventListener("mousedown", (e) => { if (e.button === 0) mouse.isDown = true; });
+window.addEventListener("mouseup", (e) => { if (e.button === 0) mouse.isDown = false; });
+
+window.addEventListener("keydown", (e) => {
+  keyState[e.code] = true;
+  if (gameState === "PLAYING" && selectedMode !== "tournament") {
+    let switchGun = null;
+    if (e.code === "Digit1") switchGun = "pistol";
+    if (e.code === "Digit2") switchGun = "smg";
+    if (e.code === "Digit3") switchGun = "shotgun";
+    if (e.code === "Digit4") switchGun = "sniper";
+
+    if (switchGun) {
+      if (isHost) {
+        const me = players.find(p => p.id === 1);
+        if (me) me.gun = switchGun;
+      } else if (hostConn && hostConn.open) {
+        hostConn.send({ type: "INPUT", keys: keyState, aimAngle: 0, isMouseDown: false, switchGun: switchGun });
+      }
+    }
+  }
+});
+window.addEventListener("keyup", (e) => { keyState[e.code] = false; });
+
+function shoot(player) {
+  if (gameState !== "PLAYING" || player.spawnProtTimer > 0 || player.cooldownTimer > 0 || player.hp <= 0) return;
+  const w = WEAPONS[player.gun];
+  
+  // Guard Rapid Fire against Revocation
+  const isRapid = !devStatus.isRevoked && ((player.id === myPlayerId && localCheats.rapidFire && !player.cheatsNullified) || (player.cheats && player.cheats.rapidFire && !player.cheatsNullified));
+  player.cooldownTimer = isRapid ? 0.03 : w.cooldown;
+  player.recoil = 7;
+
+  const barrelLength = 18;
+  const startX = player.x + Math.cos(player.aimAngle) * barrelLength;
+  const startY = (player.y - 2) + Math.sin(player.aimAngle) * barrelLength;
+
+  for (let i = 0; i < w.count; i++) {
+    let angle = player.aimAngle;
+    if (w.spread > 0) angle += (Math.random() - 0.5) * w.spread;
+    
+    // Guard 1-Hit Kill against Revocation
+    const isOneHit = !devStatus.isRevoked && ((player.id === myPlayerId && localCheats.oneHitKill && !player.cheatsNullified) || (player.cheats && player.cheats.oneHitKill && !player.cheatsNullified));
+    const dmg = isOneHit ? 999 : w.damage;
+
+    bullets.push({
+      owner: player.id, isBoss: false, x: startX, y: startY,
+      vx: Math.cos(angle) * w.speed, vy: Math.sin(angle) * w.speed,
+      radius: player.gun === "sniper" ? 4.5 : 3.0, damage: dmg, color: w.color, life: w.life
+    });
+  }
+}
+
+function shootBoss() {
+  if (!boss || bossState.stunTimer > 0) return;
+  const activePlayers = players.filter(p => p.hp > 0);
+  if (activePlayers.length === 0) return;
+
+  const target = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+  const dx = target.x - boss.x;
+  const dy = target.y - boss.y;
+  const baseAngle = Math.atan2(dy, dx);
+  bossState.facingDir = dx > 0 ? 1 : -1;
+
+  const count = bossState.enraged ? Math.round(bossConfig.thornCount * 1.35) : bossConfig.thornCount;
+  const thornSpeed = bossState.enraged ? bossConfig.thornSpeed * 1.15 : bossConfig.thornSpeed;
+
+  for (let i = 0; i < count; i++) {
+    let angle = baseAngle + (Math.random() - 0.5) * bossConfig.spread;
+    bullets.push({
+      owner: 99, isBoss: true, x: boss.x + bossState.facingDir * 25, y: boss.y - 8,
+      vx: Math.cos(angle) * thornSpeed, vy: Math.sin(angle) * thornSpeed,
+      radius: 3.8, damage: WEAPONS.boss_thorns.damage, color: bossState.enraged ? "#e74c3c" : "#2ecc71", life: WEAPONS.boss_thorns.life
+    });
+  }
+}
+
+function respawnPlayer(p) {
+  if (p.lives <= 0) return;
+  p.hp = 100; p.fuel = 100; p.spawnProtTimer = 2.0; p.vx = 0; p.vy = 0;
+  
+  // Guarantee revoked cheats remain disabled upon respawning
+  if (devStatus.isRevoked && p.id === myPlayerId) {
+    p.cheats = { godMode: false, infiniteFuel: false, rapidFire: false, oneHitKill: false };
+    p.cheatsNullified = true;
+  }
+
+  const spawns = selectedMap === "apex" ? [{x: 250, y: 660}, {x: MAP_W - 250, y: 660}, {x: 1600, y: 280}] : [{x: 250, y: 560}, {x: MAP_W - 250, y: 280}];
+  const pick = spawns[Math.floor(Math.random() * spawns.length)];
+  p.x = pick.x; p.y = pick.y;
+}
+
+function onPlayerDeath(victim, killerId) {
+  victim.lives--;
+  victim.hp = 0;
+  if (scoreMap[killerId] !== undefined) scoreMap[killerId]++;
+
+  const banner = document.getElementById("kill-banner");
+  banner.innerText = `${victim.name} ELIMINATED!`;
+  banner.style.display = "block";
+  setTimeout(() => { banner.style.display = "none"; }, 1500);
+
+  if (selectedMode === "boss") {
+    const anyAlive = players.some(p => p.lives > 0);
+    if (!anyAlive) {
+      endMatch("LAKDI MAN", "THE TIMBER CURSE CONSUMES ALL SQUADS.");
+    } else if (victim.lives > 0) {
+      setTimeout(() => respawnPlayer(victim), 1400);
+    }
+  } else {
+    if (victim.lives <= 0) {
+      const survivors = players.filter(p => p.lives > 0);
+      if (survivors.length <= 1) {
+        const winner = survivors[0] ? survivors[0].name : "NOBODY";
+        endMatch(winner, "LAST OPERATIVE STANDING");
+      }
+    } else {
+      setTimeout(() => respawnPlayer(victim), 1400);
+    }
+  }
+}
+
+function damageBoss(damage, hitLocation, hitY) {
+  if (bossState.stunTimer > 0) return;
+  let multiplier = 1.0;
+  let text = "TRUNK";
+  let color = "#f39c12";
+
+  if (hitLocation === "HEAD") {
+    multiplier = 2.0; text = "HEADSHOT!"; color = "#e74c3c";
+    emitParticles(boss.x, hitY, "#f1c40f", 7, 100, 0.35, 3);
+  } else if (hitLocation === "ROOTS") {
+    multiplier = 0.6; text = "ROOTS"; color = "#7f8c8d";
+  }
+
+  if (bossState.enraged && hitLocation !== "HEAD" && bossConfig.barkArmor > 0) {
+    multiplier *= (1.0 - bossConfig.barkArmor);
+    text += " [ARMORED]";
+  }
+
+  const finalDmg = Math.max(1, Math.round(damage * multiplier));
+  bossState.hp -= finalDmg;
+  emitFloatingText(boss.x, hitY - 20, `-${finalDmg} ${text}`, color);
+
+  if (bossState.hp <= 0) {
+    if (bossState.phase === 1) {
+      bossState.phase = 2; bossState.enraged = true; bossState.stunTimer = 2.5;
+      bossState.hp = bossConfig.hpPerPhase; bossState.maxHp = bossConfig.hpPerPhase;
+      boss.width = 62; boss.height = 105;
+
+      document.getElementById("boss-title-text").innerText = `💥 LAKDI MAN [${selectedDiff.toUpperCase()}] // ENRAGED (PHASE 2)`;
+      document.getElementById("boss-title-text").style.color = "#e74c3c";
+      document.getElementById("boss-bar-fill").style.backgroundColor = "#e74c3c";
+      emitParticles(boss.x, boss.y, "#e74c3c", 40, 160, 0.8, 4);
+    } else {
+      bossState.hp = 0;
+      emitParticles(boss.x, boss.y, "#2ecc71", 60, 200, 1.2, 5);
+      endMatch("VICTORY", "YOU HAVE FREED JAYESH FROM LAKDI CURSE!");
+    }
+  }
+
+  const pct = Math.max(0, (bossState.hp / bossState.maxHp) * 100);
+  document.getElementById("boss-bar-fill").style.width = pct + "%";
+}
+
+function endMatch(winner, subMessage) {
+  gameState = "MATCH_OVER";
+  hideAllScreens();
+  document.getElementById("match-winner-text").innerText = winner;
+  document.getElementById("match-final-score").innerText = subMessage;
+  document.getElementById("screen-match-result").style.display = "flex";
+}
+
+function updatePhysics(p, dt) {
+  if (!p || p.hp <= 0) return;
+  
+  // Guard Infinite Jetpack against Revocation
+  const infFuel = !devStatus.isRevoked && ((p.id === myPlayerId && localCheats.infiniteFuel && !p.cheatsNullified) || (p.cheats && p.cheats.infiniteFuel && !p.cheatsNullified));
+
+  if (p.fuelCool > 0) p.fuelCool -= dt;
+  if (p.thrusting && (p.fuel > 0 || infFuel) && p.fuelCool <= 0) {
+    p.vy -= 1850 * dt;
+    if (p.vy < -550) p.vy = -550;
+    if (!infFuel) {
+      p.fuel = Math.max(0, p.fuel - 45 * dt);
+      if (p.fuel === 0) p.fuelCool = 0.4;
+    }
+    const bagX = p.x - (p.facingDir * 10);
+    const bagY = p.y - 4;
+    emitParticles(bagX, bagY + 8, Math.random() > 0.4 ? "#f39c12" : "#3498db", 1, 30, 0.15, 2.0);
+  } else {
+    p.fuel = Math.min(100, p.fuel + (p.onGround ? 65 : 30) * dt);
+  }
+
+  p.vy += GRAVITY * dt;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+
+  const halfW = p.width / 2;
+  const halfH = p.height / 2;
+
+  if (p.x - halfW < 25) { p.x = 25 + halfW; p.vx = 0; }
+  if (p.x + halfW > MAP_W - 25) { p.x = MAP_W - 25 - halfW; p.vx = 0; }
+  if (p.y - halfH < 20) { p.y = 20 + halfH; p.vy = Math.max(0, p.vy); }
+  if (p.y + halfH > MAP_H - 10) { p.y = MAP_H - 10 - halfH; p.vy = 0; p.onGround = true; }
+
+  p.onGround = false;
+  if (p.jumpPadCooldown > 0) p.jumpPadCooldown -= dt;
+
+  if (p.jumpPadCooldown <= 0) {
+    jumpPads.forEach(pad => {
+      if (p.x + halfW > pad.x && p.x - halfW < pad.x + pad.w &&
+          p.y + halfH > pad.y && p.y - halfH < pad.y + pad.h) {
+        if (pad.powerY) p.vy = pad.powerY;
+        if (pad.powerX) p.vx = pad.powerX;
+        p.onGround = false;
+        p.jumpPadCooldown = 0.35;
+      }
+    });
+  }
+
+  platforms.forEach(plat => {
+    const pLeft = p.x - halfW, pRight = p.x + halfW, pTop = p.y - halfH, pBottom = p.y + halfH;
+    if (pRight > plat.x && pLeft < plat.x + plat.w && pBottom > plat.y && pTop < plat.y + plat.h) {
+      const overlapLeft = pRight - plat.x, overlapRight = (plat.x + plat.w) - pLeft;
+      const overlapTop = pBottom - plat.y, overlapBottom = (plat.y + plat.h) - pTop;
+      const minOverlapY = Math.min(overlapTop, overlapBottom);
+      const minOverlapX = Math.min(overlapLeft, overlapRight);
+
+      if (minOverlapY < minOverlapX) {
+        if (overlapTop < overlapBottom && p.vy >= 0) { p.y = plat.y - halfH; p.vy = 0; p.onGround = true; }
+        else if (overlapBottom < overlapTop && p.vy < 0) { p.y = plat.y + plat.h + halfH; p.vy = 0; }
+      } else if (plat.type === 'cover' || plat.type === 'ground') {
+        if (overlapLeft < overlapRight) { p.x = plat.x - halfW; p.vx = 0; }
+        else { p.x = plat.x + plat.w + halfW; p.vx = 0; }
+      }
+    }
+  });
+
+  if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - dt * 25);
+}
+
+function updateBossPhysics(dt) {
+  if (!boss) return;
+  if (bossState.stunTimer > 0) {
+    bossState.stunTimer -= dt;
+    return;
+  }
+
+  boss.vy += GRAVITY * dt;
+  boss.y += boss.vy * dt;
+  boss.x += boss.vx * dt;
+
+  const halfW = boss.width / 2;
+  const halfH = boss.height / 2;
+
+  if (boss.x - halfW < 100) { boss.x = 100 + halfW; boss.vx *= -1; }
+  if (boss.x + halfW > MAP_W - 100) { boss.x = MAP_W - 100 - halfW; boss.vx *= -1; }
+
+  boss.onGround = false;
+  platforms.forEach(plat => {
+    if (boss.x + halfW > plat.x && boss.x - halfW < plat.x + plat.w &&
+        boss.y + halfH > plat.y && boss.y - halfH < plat.y + plat.h) {
+      if (boss.vy >= 0) {
+        boss.y = plat.y - halfH;
+        boss.vy = 0;
+        boss.onGround = true;
+      }
+    }
+  });
+}
+
+function updateBossAI(dt) {
+  if (!boss || bossState.stunTimer > 0) return;
+  const activePlayers = players.filter(p => p.hp > 0);
+  if (activePlayers.length === 0) return;
+
+  const target = activePlayers[0];
+  const dx = target.x - boss.x;
+  bossState.facingDir = dx > 0 ? 1 : -1;
+  boss.vx = bossState.facingDir * (bossState.enraged ? bossConfig.speed * 1.3 : bossConfig.speed);
+
+  bossState.attackTimer -= dt;
+  if (bossState.attackTimer <= 0) {
+    shootBoss();
+    bossState.attackTimer = bossState.enraged ? bossConfig.attackInterval * 0.7 : bossConfig.attackInterval;
+  }
+
+  bossState.stompTimer -= dt;
+  if (bossState.stompTimer <= 0 && boss.onGround) {
+    boss.vy = -boss.jumpForce * 1.05;
+    bossState.stompTimer = bossState.enraged ? bossConfig.stompCooldown * 0.75 : bossConfig.stompCooldown;
+
+    setTimeout(() => {
+      if (!boss) return;
+      emitParticles(boss.x, boss.y + boss.height / 2, "#e67e22", 25, 120, 0.4, 3);
+      players.forEach(p => {
+        if (p && p.hp > 0 && Math.abs(p.y - boss.y) < 80 && Math.abs(p.x - boss.x) < 320) {
+          p.vy = -550;
+          const isGod = !devStatus.isRevoked && ((p.id === myPlayerId && localCheats.godMode && !p.cheatsNullified) || (p.cheats && p.cheats.godMode && !p.cheatsNullified));
+          if (!isGod) {
+            p.hp -= 14;
+            emitFloatingText(p.x, p.y - 20, "-STOMP", "#e67e22");
+            if (p.hp <= 0) onPlayerDeath(p, 99);
+          }
+          p.fuel = Math.max(0, p.fuel - 25);
+        }
+      });
+    }, 450);
+  }
+}
+
+let lastTime = performance.now();
+function update(dt) {
+  if (gameState !== "PLAYING" && gameState !== "ANNOUNCING") return;
+
+  mouse.worldX = mouse.x + cam.x;
+  mouse.worldY = mouse.y + cam.y;
+
+  if (gameState === "PLAYING") {
+    if (isHost) {
+      const me = players.find(p => p.id === 1);
+      if (me && me.hp > 0) {
+        me.inputKeys = keyState;
+        const dx = mouse.worldX - me.x;
+        const dy = mouse.worldY - (me.y - 2);
+        me.aimAngle = Math.atan2(dy, dx);
+        me.facingDir = mouse.worldX >= me.x ? 1 : -1;
+        me.mouseIsDown = mouse.isDown;
+      }
+    } else if (hostConn && hostConn.open) {
+      const myObj = players.find(p => p.id === myPlayerId);
+      const angle = myObj ? Math.atan2(mouse.worldY - (myObj.y - 2), mouse.worldX - myObj.x) : 0;
+      hostConn.send({ type: "INPUT", keys: keyState, aimAngle: angle, isMouseDown: mouse.isDown });
+    }
+  }
+
+  // Host Simulation Engine
+  if (isHost) {
+    if (gameState === "ANNOUNCING") {
+      countdownRemaining -= dt;
+      const countEl = document.getElementById("announcement-count");
+      if (countdownRemaining > 0) {
+        countEl.innerText = Math.ceil(countdownRemaining);
+      } else {
+        document.getElementById("announcement-overlay").style.display = "none";
+        gameState = "PLAYING";
+      }
+    }
+
+    if (gameState === "PLAYING") {
+      players.forEach(p => {
+        if (p.spawnProtTimer > 0) p.spawnProtTimer = Math.max(0, p.spawnProtTimer - dt);
+        if (p.cooldownTimer > 0) p.cooldownTimer -= dt;
+
+        if (p.rawName === "TARGET_DUMMY" && p.hp > 0) {
+          const hostP = players.find(x => x.id === 1);
+          if (hostP) {
+            p.facingDir = hostP.x > p.x ? 1 : -1;
+            p.aimAngle = Math.atan2(hostP.y - p.y, hostP.x - p.x);
+            p.vx = Math.sin(performance.now() / 800) * 120;
+          }
+        } else if (p.hp > 0) {
+          p.vx = 0;
+          if (p.inputKeys["KeyA"] || p.inputKeys["ArrowLeft"]) p.vx = -p.speed;
+          if (p.inputKeys["KeyD"] || p.inputKeys["ArrowRight"]) p.vx = p.speed;
+          p.thrusting = p.inputKeys["KeyW"] || p.inputKeys["ArrowUp"] || false;
+          if (p.thrusting && p.onGround) { p.vy = -p.jumpForce; p.onGround = false; }
+          p.facingDir = Math.cos(p.aimAngle) >= 0 ? 1 : -1;
+          if (p.mouseIsDown) shoot(p);
+        }
+
+        updatePhysics(p, dt);
+      });
+
+      if (selectedMode === "boss") {
+        updateBossPhysics(dt);
+        updateBossAI(dt);
+      }
+
+      // Swept Bullets Collision
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+
+        if (b.life <= 0 || b.x < 0 || b.x > MAP_W || b.y < 0 || b.y > MAP_H) {
+          bullets.splice(i, 1);
+          continue;
+        }
+
+        let hit = false;
+        for (let plat of platforms) {
+          if (b.x > plat.x && b.x < plat.x + plat.w && b.y > plat.y && b.y < plat.y + plat.h) {
+            hit = true;
+            break;
+          }
+        }
+
+        if (!hit && boss && !b.isBoss) {
+          const halfW = boss.width / 2;
+          const halfH = boss.height / 2;
+          if (b.x >= boss.x - halfW && b.x <= boss.x + halfW &&
+              b.y >= boss.y - halfH && b.y <= boss.y + halfH) {
+            hit = true;
+            const relY = b.y - boss.y;
+            let loc = "TRUNK";
+            if (relY <= -16) loc = "HEAD";
+            else if (relY > 18) loc = "ROOTS";
+            damageBoss(b.damage, loc, b.y);
+          }
+        }
+
+        if (!hit) {
+          const targets = b.isBoss ? players : players.filter(p => p.id !== b.owner);
+          for (let target of targets) {
+            if (target && target.hp > 0 && target.spawnProtTimer <= 0) {
+              const halfW = target.width / 2;
+              const halfH = target.height / 2;
+              if (b.x >= target.x - halfW && b.x <= target.x + halfW &&
+                  b.y >= target.y - halfH && b.y <= target.y + halfH) {
+                hit = true;
+
+                // God Mode Verification Guard
+                const isImmune = !devStatus.isRevoked && ((target.id === myPlayerId && localCheats.godMode && !target.cheatsNullified) || (target.cheats && target.cheats.godMode && !target.cheatsNullified));
+
+                const relY = b.y - target.y;
+                let dmg = b.damage;
+                let locText = "BODY";
+                let col = "#fff";
+                let isHeadshot = false;
+
+                if (relY <= -8) {
+                  dmg = Math.round(b.damage * 2.0);
+                  locText = "HEADSHOT!";
+                  col = "#e74c3c";
+                  isHeadshot = true;
+                } else if (relY > 8) {
+                  dmg = Math.round(b.damage * 0.7);
+                  locText = "LEG HIT";
+                  col = "#95a5a6";
+                }
+
+                // Send Attacker Visual Feedback
+                if (b.owner === 1) {
+                  emitFloatingText(target.x, target.y - 30, `-${dmg} (${locText})`, col);
+                  if (isHeadshot) emitParticles(b.x, b.y, "#f1c40f", 6, 80, 0.3, 3);
+                } else {
+                  const attackerConn = guestConnections.find(c => c.assignedId === b.owner);
+                  if (attackerConn && attackerConn.open) {
+                    attackerConn.send({
+                      type: "HIT_FEEDBACK", x: target.x, y: target.y,
+                      dmg: dmg, text: locText, color: col, headshot: isHeadshot
+                    });
+                  }
+                }
+
+                // Health Deducted Strictly if Target Lacks Active God Mode
+                if (!isImmune) {
+                  target.hp -= dmg;
+                  if (target.hp <= 0) onPlayerDeath(target, b.owner);
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        if (hit) bullets.splice(i, 1);
+      }
+
+      // Synchronize Full Physics Snapshot To All Connected Clients
+      const syncPacket = {
+        type: "SYNC", gameState: gameState, scoreMap: scoreMap,
+        players: players.map(p => ({
+          id: p.id, name: p.name, rawName: p.rawName, color: p.color,
+          x: p.x, y: p.y, width: p.width, height: p.height,
+          hp: p.hp, lives: p.lives, fuel: p.fuel, gun: p.gun,
+          facingDir: p.facingDir, aimAngle: p.aimAngle, recoil: p.recoil,
+          spawnProtTimer: p.spawnProtTimer, cheatsNullified: p.cheatsNullified
+        })),
+        boss: boss, bossState: bossState,
+        bullets: bullets.map(b => ({ x: b.x, y: b.y, radius: b.radius, color: b.color }))
+      };
+      guestConnections.forEach(c => { if (c.open) c.send(syncPacket); });
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i];
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+    pt.life -= dt;
+    if (pt.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y += ft.vy * dt;
+    ft.life -= dt;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  const myPlayer = players.find(p => p.id === myPlayerId);
+  if (myPlayer) {
+    cam.x += (myPlayer.x - VIEW_W / 2 - cam.x) * 0.1;
+    cam.y += (myPlayer.y - VIEW_H / 2 - cam.y) * 0.1;
+    cam.x = Math.max(0, Math.min(cam.x, MAP_W - VIEW_W));
+    cam.y = Math.max(0, Math.min(cam.y, MAP_H - VIEW_H));
+
+    // ISOLATED HUD UPDATE: ONLY RENDERS LOCAL OPERATIVE'S PRIVATE DATA
+    document.getElementById("hud-my-name").innerText = myPlayer.name;
+    document.getElementById("hud-my-hp").innerText = Math.max(0, myPlayer.hp);
+    document.getElementById("hud-hp-bar-fill").style.width = Math.max(0, myPlayer.hp) + "%";
+    document.getElementById("hud-my-gun").innerText = WEAPONS[myPlayer.gun].name;
+    document.getElementById("hud-my-lives").innerText = "💙".repeat(Math.max(0, myPlayer.lives));
+  }
+  document.getElementById("hud-mode-info").innerText = selectedMode.toUpperCase();
+}
+
+function drawOperative(p) {
+  if (!p || p.hp <= 0) return;
+  ctx.save();
+
+  if (p.spawnProtTimer > 0) {
+    ctx.strokeStyle = "#f1c40f";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 28, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(p.name, p.x, p.y - 32);
+
+  // Private Overhead Health Bar (Rendered only over your own operative)
+  if (p.id === myPlayerId) {
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(p.x - 18, p.y - 28, 36, 4);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - 18, p.y - 28, 36 * (p.hp / 100), 4);
+  }
+
+  // Backpack Jetpack
+  const bagOffset = p.facingDir === 1 ? -12 : 5;
+  ctx.fillStyle = "#1b2631";
+  ctx.fillRect(p.x + bagOffset, p.y - 8, 7, 16);
+  ctx.fillStyle = "#5dade2";
+  ctx.fillRect(p.x + bagOffset + (p.facingDir === 1 ? 1 : 4), p.y - 5, 2, 8);
+
+  // 1. HEAD (Weak Point)
+  ctx.fillStyle = "#2c3e50";
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - 15, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = p.color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Visor
+  ctx.fillStyle = "#f1c40f";
+  ctx.fillRect(p.x + (p.facingDir === 1 ? 1 : -6), p.y - 17, 5, 3);
+
+  // 2. TORSO
+  ctx.fillStyle = p.color;
+  ctx.fillRect(p.x - 8, p.y - 8, 16, 17);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(p.x - 8, p.y - 8, 16, 17);
+
+  // 3. LEGS
+  ctx.fillStyle = "#1a252f";
+  ctx.fillRect(p.x - 7, p.y + 9, 6, 14);
+  ctx.fillRect(p.x + 1, p.y + 9, 6, 14);
+  ctx.fillStyle = "#3498db";
+  ctx.fillRect(p.x - (p.facingDir === 1 ? 7 : 8), p.y + 19, 7, 4);
+  ctx.fillRect(p.x + (p.facingDir === 1 ? 1 : 0), p.y + 19, 7, 4);
+
+  // 4. ROTATING WEAPON ARM
+  ctx.save();
+  ctx.translate(p.x, p.y - 2);
+  ctx.rotate(p.aimAngle);
+  ctx.fillStyle = "#111";
+  ctx.fillRect(-p.recoil, -3, 18, 6);
+  ctx.fillStyle = "#7f8c8d";
+  ctx.fillRect(10 - p.recoil, -2, 8, 4);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawLakdiMan() {
+  if (!boss) return;
+  ctx.save();
+
+  const halfW = boss.width / 2;
+  const halfH = boss.height / 2;
+  let shakeX = 0;
+  if (bossState.stunTimer > 0) shakeX = (Math.random() - 0.5) * 6;
+
+  ctx.fillStyle = bossState.enraged ? "#4a235a" : "#4a3b32";
+  ctx.fillRect(boss.x - 14 + shakeX, boss.y - halfH, 28, 22);
+  ctx.strokeStyle = bossState.enraged ? "#e74c3c" : "#27ae60";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boss.x - 14 + shakeX, boss.y - halfH, 28, 22);
+
+  ctx.fillStyle = bossState.enraged ? "#e74c3c" : "#2ecc71";
+  ctx.fillRect(boss.x + (bossState.facingDir === 1 ? 2 : -10) + shakeX, boss.y - halfH + 6, 8, 4);
+
+  ctx.fillStyle = bossState.enraged ? "#2c150d" : "#5d4037";
+  ctx.fillRect(boss.x - halfW + shakeX, boss.y - halfH + 22, boss.width, halfH);
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boss.x - halfW + shakeX, boss.y - halfH + 22, boss.width, halfH);
+
+  ctx.fillStyle = "#3e2723";
+  ctx.fillRect(boss.x - halfW + 4 + shakeX, boss.y + 12, 14, halfH - 12);
+  ctx.fillRect(boss.x + halfW - 18 + shakeX, boss.y + 12, 14, halfH - 12);
+  ctx.restore();
+}
+
+function render() {
+  ctx.save();
+  ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+
+  ctx.fillStyle = "#0c1a29";
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+  ctx.save();
+  ctx.translate(-Math.floor(cam.x), -Math.floor(cam.y));
+
+  platforms.forEach(plat => {
+    ctx.fillStyle = plat.type === "ground" ? "#1e272e" : "#2c3e50";
+    ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.4)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
+  });
+
+  jumpPads.forEach(pad => {
+    ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
+    ctx.fillRect(pad.x, pad.y, pad.w, pad.h);
+    ctx.strokeStyle = "#2ecc71";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pad.x, pad.y, pad.w, pad.h);
+  });
+
+  bullets.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  particles.forEach(pt => {
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size * (pt.life / pt.maxLife), 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  players.forEach(p => drawOperative(p));
+  drawLakdiMan();
+
+  floatingTexts.forEach(ft => {
+    ctx.fillStyle = ft.color;
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(ft.text, ft.x, ft.y);
+  });
+
+  ctx.restore();
+
+  ctx.strokeStyle = "#f1c40f";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(mouse.x, mouse.y, 7, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function gameLoop(time) {
+  if (!isHost || gameState === "MENU" || gameState === "MATCH_OVER") {
+    const dt = Math.min((time - lastTime) / 1000, 0.05);
+    lastTime = time;
+    update(dt);
+  }
+  render();
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
