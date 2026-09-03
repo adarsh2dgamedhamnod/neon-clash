@@ -1217,7 +1217,7 @@ function startMatch() {
       bossState.stunTimer = 0;
       bossState.enraged = false;
 
-      boss = { x: 1600, y: 260, width: 50, height: 90, vx: 0, vy: 0, onGround: false };
+      boss = { x: 1600, y: 260, width: 50, height: 90, vx: 0, vy: 0, onGround: false, jumpForce: 720 };
       document.getElementById("boss-bar-container").style.display = "flex";
       document.getElementById("boss-title-text").innerText = `LAKDI MAN [${selectedDiff.toUpperCase()}] // PHASE 1`;
       document.getElementById("boss-bar-fill").style.backgroundColor = "#2ecc71";
@@ -1492,6 +1492,17 @@ function updateBossPhysics(dt) {
   boss.vy += GRAVITY * dt;
   boss.y += boss.vy * dt;
   boss.x += boss.vx * dt;
+// SAFETY FIX: Prevents boss from disappearing or becoming NaN
+  if (isNaN(boss.y) || isNaN(boss.x)) {
+    boss.x = 1600;
+    boss.y = 300;
+    boss.vx = 0;
+    boss.vy = 0;
+  }
+  if (boss.y < 50) {
+    boss.y = 50;
+    boss.vy = 0;
+  }
 
   const halfW = boss.width / 2;
   const halfH = boss.height / 2;
@@ -1530,6 +1541,8 @@ function updateBossAI(dt) {
 
   bossState.stompTimer -= dt;
   if (bossState.stompTimer <= 0 && boss.onGround) {
+  const force = boss.jumpForce || 720;
+  boss.vy = -force * 1.05;
     boss.vy = -boss.jumpForce * 1.05;
     bossState.stompTimer = bossState.enraged ? bossConfig.stompCooldown * 0.75 : bossConfig.stompCooldown;
 
